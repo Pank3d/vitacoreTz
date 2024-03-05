@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import { dataInter } from "./shared/type";
-import { getInfo } from "./shared/api";
+import { useContext, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -10,83 +8,63 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { DataContext } from "./context/ContextForData";
 
 function App() {
-  const [gariDate, setGariDate] = useState<dataInter[]>([]);
-  const [grif, setGrif] = useState<string[]>([]);
-  const [sliz, setSliz] = useState<string[]>([]);
-  const [puff, setPuff] = useState<string[]>([]);
-  const [raven, setRaven] = useState<string[]>([]);
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const { grif, sliz, raven, puff } = useContext(DataContext);
+  const [startDate, setStartDate] = useState<string>("0001-01-01");
+  const [endDate, setEndDate] = useState<string>(getCurrentDate());
+  const [graphData, setGraphData] = useState<any[]>([]);
+  const [draw, setDraw] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await getInfo();
-        setGariDate(response);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-    fetchData();
-  }, []);
+  function getCurrentDate() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
 
-  useEffect(() => {
-    if (gariDate.length === 0) return;
+  const formatDate = (dateString: string) => {
+    const [day, month, year] = dateString.split("-");
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    const formattedDay = date.getDate().toString().padStart(2, "0");
+    const formattedMonth = (date.getMonth() + 1).toString().padStart(2, "0");
+    const formattedYear = date.getFullYear();
+    return `${formattedYear}.${formattedMonth}.${formattedDay}`;
+  };
 
-    const grifMembers = gariDate.filter(
-      (member: dataInter) =>
-        member.house === "Gryffindor" &&
-        member.hogwartsStudent === true/*  &&
-        member.dateOfBirth !== null */
-    );
-    const grifDatesOfBirth = grifMembers.map((member: dataInter) =>
-       (member.dateOfBirth)  
-    );
+  const filterDataByDate = (
+    data: any[],
+    startDate: string,
+    endDate: string
+  ) => {
+    return data.filter((item) => {
+      const formateDate = formatDate(item);
+      const itemDate = new Date(formateDate).getTime();
+      const start = new Date(startDate).getTime();
+      const end = new Date(endDate).getTime();
 
-    const slizMembers = gariDate.filter(
-      (member: dataInter) =>
-        member.house === "Slytherin" &&
-        member.hogwartsStudent === true /* &&
-        member.dateOfBirth !== null */
-    );
-    const slizDatesOfBirth = slizMembers.map((member: dataInter) =>
-       (member.dateOfBirth)  
-    );
+      return itemDate >= start && itemDate <= end;
+    });
+  };
 
-    const ravenMembers = gariDate.filter(
-      (member: dataInter) =>
-        member.house === "Ravenclaw" &&
-        member.hogwartsStudent === true /* &&
-        member.dateOfBirth !== null */
-    );
-    const ravenDatesOfBirth = ravenMembers.map((member: dataInter) =>
-       (member.dateOfBirth)  
-    );
+  const drawGraph = () => {
+    const filteredGrif = filterDataByDate(grif, startDate, endDate);
+    const filteredSliz = filterDataByDate(sliz, startDate, endDate);
+    const filteredRaven = filterDataByDate(raven, startDate, endDate);
+    const filteredPuff = filterDataByDate(puff, startDate, endDate);
 
-    const puffMembers = gariDate.filter(
-      (member: dataInter) =>
-        member.house === "Hufflepuff" &&
-        member.hogwartsStudent === true /* &&
-        member.dateOfBirth !== null */
-    );
-    const puffDatesOfBirth = puffMembers.map((member: dataInter) =>
-       (member.dateOfBirth)  
-    );
+    const filterData = [
+      { faculty: "Gryffindor", count: filteredGrif.length },
+      { faculty: "Slytherin", count: filteredSliz.length },
+      { faculty: "Ravenclaw", count: filteredRaven.length },
+      { faculty: "Hufflepuff", count: filteredPuff.length },
+    ];
 
-    setGrif(grifDatesOfBirth || []);
-    setSliz(slizDatesOfBirth || []);
-    setRaven(ravenDatesOfBirth || []);
-    setPuff(puffDatesOfBirth || []);
-  }, [gariDate]);
-
-  console.log("факультет гриф", grif);
-  console.log("факультет слизи", sliz);
-  console.log("факультет raven", raven);
-  console.log("факультет пуфф", puff);
-  console.log(startDate);
-  console.log(endDate);
+    setGraphData(filterData);
+    setDraw(true);
+  };
 
   const allData = [
     { faculty: "Gryffindor", count: grif.length },
@@ -96,36 +74,43 @@ function App() {
   ];
 
   return (
-    <>
+    <div>
       <div>
-        <p>от</p>
+        <p>От</p>
         <input
           type="date"
           onChange={(e) => setStartDate(e.target.value)}
           value={startDate || ""}
         />
-        <p>до</p>
+        <p>До</p>
         <input
           type="date"
           value={endDate || ""}
           onChange={(e) => setEndDate(e.target.value)}
         />
+        <button onClick={() => drawGraph()}>Отрисовать</button>
       </div>
-      {endDate === "" && startDate === "" ? (
-        <>
-          <BarChart width={600} height={400} data={allData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="faculty" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="count" fill="#8884d8" />
-          </BarChart>
-        </>
+
+      {draw ? (
+        <BarChart width={600} height={400} data={graphData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="faculty" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Bar dataKey="count" fill="#8884d8" />
+        </BarChart>
       ) : (
-        <>Тут будут отсортированные данные</>
+        <BarChart width={600} height={400} data={allData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="faculty" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Bar dataKey="count" fill="#8884d8" />
+        </BarChart>
       )}
-    </>
+    </div>
   );
 }
 
